@@ -16,12 +16,24 @@ SET JAVA_DS_FILE=SecureTomcatDataSourceImpl.java
 SET CLASS_DS_FILE=SecureTomcatDataSourceImpl.class
 SET JAVA_STJ_FILE=SecureTomcatJDBC.jar
 SET LOG_STJ_FILE=SecureTomcatJDBC.log
+SET CMD_ENV_FILE=SetEnv.bat
 SET EMPTYSTRING=
+
 DEL /f /q %INFOFILE%
 DEL /f /q %BASE_DIR%\*.class
+
+
+IF EXIST "%CMD_ENV_FILE%" (
+  @REM Copying File
+  CALL %CMD_ENV_FILE%
+)
  
-ECHO Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/ ):
-SET /p InstanceDir=
+IF %CATALINA_HOME%=="" (
+	ECHO Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/ ):
+	SET /p InstanceDir=
+) ELSE (
+	SET InstanceDir=%CATALINA_HOME%
+)
 
 IF EXIST "%InstanceDir%" (
 	SET CATALINA_HOME=%InstanceDir%
@@ -152,7 +164,7 @@ IF %ENTERED_INFO_VALID% == 1 (
     ENDLOCAL
 	))>"%TEMP_JAVA_ENC_FILE%
 	
-	XCOPY %TEMP_JAVA_ENC_FILE% %JAVA_ENC_FILE% /y
+	XCOPY %TEMP_JAVA_ENC_FILE% %JAVA_ENC_FILE%* /y
 	DEL %TEMP_JAVA_ENC_FILE%
 	
 ) ELSE (
@@ -195,6 +207,7 @@ IF %ERRORLEVEL% EQU 0 (
 )
 
 ECHO Password Encryption Begins
+@REM TODO: Pipe this into the FINDSTR so no log file needs to be created
 %JAVA_HOME%\bin\java -jar %JAVA_STJ_FILE% > %LOG_STJ_FILE%
 
 FOR /F "delims=" %%a IN ('findstr /i usage %LOG_STJ_FILE%') DO SET USAGE_FOUND=%%a
@@ -207,7 +220,7 @@ IF NOT "%USAGE_FOUND%" == "" (
 )
 ECHO Password Encryption Completed. Your Encrypted Password is displayed above
 
-XCOPY %BAK_JAVA_ENC_FILE% %JAVA_ENC_FILE% /y
+XCOPY %BAK_JAVA_ENC_FILE% %JAVA_ENC_FILE%* /y
 DEL /f /q %BAK_JAVA_ENC_FILE%
 DEL /f /q %BASE_DIR%\*.class
 
