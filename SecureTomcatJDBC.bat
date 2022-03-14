@@ -10,7 +10,7 @@ SET LOGFILE=%BASE_DIR%\SecureTomDB-Exec.log
 SET INFOFILE=%BASE_DIR%\TomcatInfo.properties
 SET JAVA_ENC_FILE=EncDecJDBCPass.java
 SET TEMP_JAVA_ENC_FILE=EncDecJDBCPass_temp.java
-SET BAK_JAVA_ENC_FILE=EncryptJDBCPassword.java-Original
+SET BAK_JAVA_ENC_FILE=EncryptJDBCPassword-Original.java
 SET CLASS_ENC_FILE=EncDecJDBCPass.class
 SET JAVA_DS_FILE=SecureTomcatDataSourceImpl.java
 SET CLASS_DS_FILE=SecureTomcatDataSourceImpl.class
@@ -19,6 +19,10 @@ SET LOG_STJ_FILE=SecureTomcatJDBC.log
 SET CMD_ENV_FILE=SetEnv.bat
 SET SECRET_PHRASE_REPLACE=PHRASETOREPLACE
 SET EMPTYSTRING=
+
+@REM Ensure we are always working with a fresh password
+SET passwordtoencrypt=
+
 
 @REM DELETE TEMP FILES
 DEL /f /q %INFOFILE%
@@ -30,9 +34,9 @@ IF EXIST "%CMD_ENV_FILE%" (
 )
 
 @REM CHECK FOR PRECONFIGURED CATALINA_HOME, ELSE TAKE INPUT
-IF "!CATALINA_HOME!"=="" (
-	ECHO "Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/):"
-	SET /p InstanceDir=
+IF "%CATALINA_HOME%"=="" (
+	SET /p InstanceDir="Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/): "
+	@REM remove quotes if exist
 ) ELSE (
 	ECHO CATALINA_HOME IS SET TO %CATALINA_HOME%
 	SET InstanceDir=%CATALINA_HOME%
@@ -152,7 +156,7 @@ IF "%secretphrase%" == "" (
 	ECHO secret passphrase: %secretphrase%	
 )
 
-xcopy %JAVA_ENC_FILE% %BASE_DIR%\%BAK_JAVA_ENC_FILE% /y
+xcopy %JAVA_ENC_FILE% %BASE_DIR%\%BAK_JAVA_ENC_FILE%* /y
 
 IF %ERRORLEVEL% NEQ 0 (
     ECHO ERROR: failed to take backup of $JAVA_ENC_FILE
@@ -216,18 +220,38 @@ IF %ERRORLEVEL% EQU 0 (
 	EXIT 12
 )
 
-ECHO Password Encryption Begins
-@REM TODO: Pipe this into the FINDSTR so no log file needs to be created
-%JAVA_HOME%\bin\java -jar %JAVA_STJ_FILE% > %LOG_STJ_FILE%
 
-FOR /F "delims=" %%a IN ('findstr /i usage %LOG_STJ_FILE%') DO SET USAGE_FOUND=%%a
+FOR /F "delims=" %%a IN ('%JAVA_HOME%\bin\java -jar %JAVA_STJ_FILE% ^| findstr /i usage %LOG_STJ_FILE%') DO SET USAGE_FOUND=%%a
 
 IF NOT "%USAGE_FOUND%" == "" (
+	ECHO "Password Encryption Begins for %passwordtoencrypt%"
 	%JAVA_HOME%\bin\java -jar %JAVA_STJ_FILE% %passwordtoencrypt%
+	
+	FOR /l %%x IN (1, 1, 100) DO (
+
+		SETLOCAL EnableDelayedExpansion
+		SET /p response="Encrypt another password y/n: "
+				
+		IF /I "!response!" EQU "YES" SET validresponse=1
+		IF /I "!response!" EQU "Y" SET validresponse=1
+		
+		IF !validresponse! EQU 1 (
+			SET /p passwordresponse="Enter the Password to Encrypt: "
+			ECHO "Password Encryption Begins for !passwordresponse!"
+			%JAVA_HOME%\bin\java -jar %JAVA_STJ_FILE% !passwordresponse!
+		) ELSE (
+			@REM FIND ANOTHER WAY TO BREAK FOR LOOP
+			ENDLOCAL
+			GOTO ENDPASSWORD
+		)	
+		ENDLOCAL
+	)
 ) ELSE (
 	ECHO ERROR: Unable to Encrypt the Password. Sorry. Please report this problem to my Creator at aksarav@middlewareinventory.com
 	EXIT 13
 )
+:ENDPASSWORD
+
 ECHO Password Encryption Completed. Your Encrypted Password is displayed above
 
 XCOPY %BAK_JAVA_ENC_FILE% %JAVA_ENC_FILE%* /y
