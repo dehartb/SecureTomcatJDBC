@@ -17,21 +17,24 @@ SET CLASS_DS_FILE=SecureTomcatDataSourceImpl.class
 SET JAVA_STJ_FILE=SecureTomcatJDBC.jar
 SET LOG_STJ_FILE=SecureTomcatJDBC.log
 SET CMD_ENV_FILE=SetEnv.bat
+SET SECRET_PHRASE_REPLACE=PHRASETOREPLACE
 SET EMPTYSTRING=
 
+@REM DELETE TEMP FILES
 DEL /f /q %INFOFILE%
 DEL /f /q %BASE_DIR%\*.class
 
-
+@REM RUN SETENVBAT FILE FOR ANY PRECONFIGURED VALUES
 IF EXIST "%CMD_ENV_FILE%" (
-  @REM Copying File
-  CALL %CMD_ENV_FILE%
+  CALL %CMD_ENV_FILE% %*
 )
- 
-IF %CATALINA_HOME%=="" (
-	ECHO Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/ ):
+
+@REM CHECK FOR PRECONFIGURED CATALINA_HOME, ELSE TAKE INPUT
+IF "!CATALINA_HOME!"=="" (
+	ECHO "Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/):"
 	SET /p InstanceDir=
 ) ELSE (
+	ECHO CATALINA_HOME IS SET TO %CATALINA_HOME%
 	SET InstanceDir=%CATALINA_HOME%
 )
 
@@ -135,12 +138,19 @@ IF EXIST %JULI_JAR_LOC% (
 	EXIT 10
 )
 
+IF "%passwordtoencrypt%" == "" (
+	ECHO Enter the Password to Encrypt
+	SET /p passwordtoencrypt=
+) ELSE (
+	ECHO password to encrypt: %passwordtoencrypt%	
+)
 
-ECHO Enter the Password to Encrypt
-SET /p passwordtoencrypt=
-
-ECHO Enter the Secret PassPhrase
-SET /p secretphrase=
+IF "%secretphrase%" == "" (
+	ECHO Enter the Secret PassPhrase
+	SET /p secretphrase=
+) ELSE (
+	ECHO secret passphrase: %secretphrase%	
+)
 
 xcopy %JAVA_ENC_FILE% %BASE_DIR%\%BAK_JAVA_ENC_FILE% /y
 
@@ -152,14 +162,14 @@ SET ENTERED_INFO_VALID=1
 IF %secretphrase% == "" SET ENTERED_INFO_VALID=0
 IF %passwordtoencrypt% == ""  SET ENTERED_INFO_VALID=0
 
-SET secretphrasesearch=PHRASETOREPLACE
+SET SECRET_PHRASE_REPLACE=PHRASETOREPLACE
 
 IF %ENTERED_INFO_VALID% == 1 (
 	
 	(FOR /f "delims=" %%i IN (%JAVA_ENC_FILE%) DO (
     SET "line=%%i"
     SETLOCAL enabledelayedexpansion
-    SET "line=!line:%secretphrasesearch%=%secretphrase%!"
+    SET "line=!line:%SECRET_PHRASE_REPLACE%=%secretphrase%!"
     ECHO(!line!
     ENDLOCAL
 	))>"%TEMP_JAVA_ENC_FILE%
