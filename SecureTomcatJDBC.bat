@@ -6,6 +6,8 @@
 @ECHO OFF
 
 SET BASE_DIR="%cd%"
+SET CURRENT_USER=%USERDOMAIN%\%USERNAME%
+SET BUILTIN_USERS=BUILTIN\Users
 SET LOGFILE=%BASE_DIR%\SecureTomDB-Exec.log
 SET INFOFILE=%BASE_DIR%\TomcatInfo.properties
 SET JAVA_ENC_FILE=EncDecJDBCPass.java
@@ -30,30 +32,59 @@ DEL /f /q %BASE_DIR%\*.class
 
 @REM RUN SETENVBAT FILE FOR ANY PRECONFIGURED VALUES
 IF EXIST "%CMD_ENV_FILE%" (
-  CALL %CMD_ENV_FILE% %*
+	ECHO ADDING PRESET ENVIRONMENT VARIABLES
+	CALL %CMD_ENV_FILE% %*
 )
 
 @REM CHECK FOR PRECONFIGURED CATALINA_HOME, ELSE TAKE INPUT
+@REM HANDLE Quotes in CATALINA_HOME
 IF "%CATALINA_HOME%"=="" (
 	SET /p InstanceDir="Enter the Tomcat Instance CATALINA_HOME ( A Parent Directory of conf/ bin/ webapps/): "
+	SET CATALINA_HOME=%InstanceDir%
 	@REM remove quotes if exist
 ) ELSE (
 	ECHO CATALINA_HOME IS SET TO %CATALINA_HOME%
 	SET InstanceDir=%CATALINA_HOME%
 )
 
+SETLOCAL EnableDelayedExpansion
 IF EXIST "%InstanceDir%" (
-	SET CATALINA_HOME=%InstanceDir%
-	IF EXIST "%InstanceDir%"\bin\version.bat (
-	@REM -a  -x %InstanceDir%\bin\version.bat 
-	@REM convert above line to checking for execute permissions on batch file
 	
-		CALL "%InstanceDir%"\bin\version.bat > %INFOFILE%
+	IF EXIST "%InstanceDir%"\bin\version.bat (
+		ECHO STARTING VERSION CHECK
+		SET permission=false
+		
+		FOR /F "delims=" %%F IN ('ICACLS "%InstanceDir%"\bin\version.bat ^| FINDSTR  /ic:"%CURRENT_USER%" /ic:"%BUILTIN_USERS%"') DO (
+	
+			SET str1=%%F
+			SET str2=!str1:(F^)=!
+			SET str3=!str1:(RX^)=!
+			
+			IF NOT x!str3!==x!str1! ( 
+				ECHO User or builtin user has full permissions
+				SET permission=true
+	
+			)
+			IF NOT x!str2!==x!str1! (  
+				ECHO User or builtin user has execute permissions
+				SET permission=true
+				
+			)
+		)
+		
+		ECHO permission set to !permission!
+		IF !permission!==true (
+			CALL "%InstanceDir%"\bin\version.bat > %INFOFILE%
+		) ELSE (
+			ECHO ERROR: Execute Permission is not set
+			EXIT 9
+		)
 	) ELSE (
-		ECHO ERROR: Unable to find the version.bat under %InstanceDir%\bin [OR] Execute Permission is Not Set
+		ECHO ERROR: Unable to find the version.bat under %InstanceDir%\bin 
 		EXIT 9
 	)
 )
+ENDLOCAL
 ECHO Completed version.bat task
 
 CD %BASE_DIR%
